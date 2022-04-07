@@ -46,11 +46,12 @@ public class BurpExtender implements IBurpExtender, IContextMenuFactory {
 	private static final String TypeCookie      = "Cookie";
 	private static final String TypeUnknown     = "UnknownType:";
 	private static final String Title           = "Copy Request Tsv";
-	private static final String MenuItemName1   = "Copy Request Tsv (Full)";
+	private static final String MenuItemName1   = "Copy Request Tsv (Full + Comment)";
 	private static final String MenuItemName2   = "Copy Request Tsv (Header)";
 	private static final String MenuItemName3   = "Copy Request Tsv (Get/POST/Cookie)";
 	private static final String MenuItemName4   = "Copy Request Tsv (Json)";
-	private static enum TsvColumns {URL,METHOD,TYPE,NAME,VALUE};
+
+	private static enum TsvColumns {COMMENT,URL,METHOD,TYPE,NAME,VALUE};
 
 	private static final Pattern patternControlCharacter = Pattern.compile("[\\x00-\\x1F\\x7F]");
 	private static final Pattern patternQuot = Pattern.compile(Quot);
@@ -102,7 +103,7 @@ public class BurpExtender implements IBurpExtender, IContextMenuFactory {
 				
 				for(IHttpRequestResponse message:messageList) {
 					if(message.getRequest().length > 0) {
-						
+						// obtain comment
 						// メソッド + URL + Path + ヘッダ を取得
 						sb.append(cnvertList2Tsv(getHeader(message)));
 						
@@ -248,6 +249,10 @@ public class BurpExtender implements IBurpExtender, IContextMenuFactory {
 		if(tsvDataList == null) return sb.toString();
 		for(Map<Integer, String> map:tsvDataList) {
 			sb.append(Quot);
+			sb.append(convertTsvOutData(map.get(TsvColumns.COMMENT.ordinal())));
+			sb.append(Quot);
+			sb.append(Separator);
+			sb.append(Quot);
 			sb.append(convertTsvOutData(map.get(TsvColumns.METHOD.ordinal())));
 			sb.append(Quot);
 			sb.append(Separator);
@@ -270,9 +275,10 @@ public class BurpExtender implements IBurpExtender, IContextMenuFactory {
 		}
 		return sb.toString();
 	}
-	
-	public Map<Integer, String> makeTsvList(String method,String url,String type,String name,String value) {
+
+	public Map<Integer, String> makeTsvList(String comment,String method,String url,String type,String name,String value) {
 		Map<Integer, String> map = new HashMap<>();
+		map.put(TsvColumns.COMMENT.ordinal(), comment);
 		map.put(TsvColumns.METHOD.ordinal(), method);
 		map.put(TsvColumns.URL.ordinal(),    url);
 		map.put(TsvColumns.TYPE.ordinal(),   type);
@@ -285,11 +291,12 @@ public class BurpExtender implements IBurpExtender, IContextMenuFactory {
 		List<Map<Integer, String>> result = new ArrayList<>();
 		IRequestInfo requestInfo = helpers.analyzeRequest(message.getHttpService(),message.getRequest());
 		
-		// Method + URL
+		// Comment + Method + URL
+		String Comment = message.getComment();
 		URL url = requestInfo.getUrl();
 		StringBuilder sbUrl = new StringBuilder();
 		sbUrl.append(url.getProtocol()).append(Scheme).append(url.getHost()).append(url.getPath());
-		result.add(makeTsvList(requestInfo.getMethod(),sbUrl.toString(),FillBlank,FillBlank,FillBlank));
+		result.add(makeTsvList(Comment,requestInfo.getMethod(),sbUrl.toString(),FillBlank,FillBlank,FillBlank));
 		
 		// path
 		String[] paths = url.getPath().split(SplitUrlPath);
@@ -299,7 +306,7 @@ public class BurpExtender implements IBurpExtender, IContextMenuFactory {
 				pathIndex++;
 				continue;
 			}
-			result.add(makeTsvList(EMPTY,EMPTY,TypePath,Integer.toString(pathIndex++),path));
+			result.add(makeTsvList(EMPTY,EMPTY,EMPTY,TypePath,Integer.toString(pathIndex++),path));
 		}
 		
 		// header
@@ -326,7 +333,7 @@ public class BurpExtender implements IBurpExtender, IContextMenuFactory {
 					key   = header;
 					value = EMPTY;
 				}
-				result.add(makeTsvList(EMPTY,EMPTY,TypeHeader,key,value));
+				result.add(makeTsvList(EMPTY,EMPTY,EMPTY,TypeHeader,key,value));
 			} else {
 				isFirst = false;
 			}
@@ -343,23 +350,23 @@ public class BurpExtender implements IBurpExtender, IContextMenuFactory {
 			Map<Integer, String> map = new HashMap<>();
 			switch (iParameter.getType()) {
 				case IParameter.PARAM_URL:
-					result.add(makeTsvList(EMPTY,EMPTY,TypeUrl,iParameter.getName(),decode(iParameter.getValue())));
+					result.add(makeTsvList(EMPTY,EMPTY,EMPTY,TypeUrl,iParameter.getName(),decode(iParameter.getValue())));
 					break;
 				case IParameter.PARAM_COOKIE:
-					result.add(makeTsvList(EMPTY,EMPTY,TypeCookie,iParameter.getName(),decode(iParameter.getValue())));
+					result.add(makeTsvList(EMPTY,EMPTY,EMPTY,TypeCookie,iParameter.getName(),decode(iParameter.getValue())));
 					break;
 				case IParameter.PARAM_BODY:
 				case IParameter.PARAM_MULTIPART_ATTR:
 				case IParameter.PARAM_XML:
 				case IParameter.PARAM_XML_ATTR:
-					result.add(makeTsvList(EMPTY,EMPTY,TypeBody,iParameter.getName(),decode(iParameter.getValue())));
+					result.add(makeTsvList(EMPTY,EMPTY,EMPTY,TypeBody,iParameter.getName(),decode(iParameter.getValue())));
 					break;
 				case IParameter.PARAM_JSON:
 					// SKIP
 					break;
 				default:
 					// OTHER
-					result.add(makeTsvList(EMPTY,EMPTY,TypeUnknown,iParameter.getName(),decode(iParameter.getValue())));
+					result.add(makeTsvList(EMPTY,EMPTY,EMPTY,TypeUnknown,iParameter.getName(),decode(iParameter.getValue())));
 					break;
 			}
 		}
@@ -391,13 +398,13 @@ public class BurpExtender implements IBurpExtender, IContextMenuFactory {
 				StringBuilder key = new StringBuilder();
 				key.append(parentKey).append(ArrayIndexStart).append(entry.getKey()).append(ArrayIndexEnd);
 				if(entry.getValue().isJsonNull()) {
-					result.add(makeTsvList(EMPTY,EMPTY,TypeBody,key.toString(),decode(null)));
+					result.add(makeTsvList(EMPTY,EMPTY,EMPTY,TypeBody,key.toString(),decode(null)));
 				} else if(entry.getValue().isJsonObject()) {
 					result = addTsvList(result,parseJson(entry.getValue().toString(),key.toString()));
 				} else if(entry.getValue().isJsonArray()) {
 					result = addTsvList(result,parseJson(entry.getValue().toString(),key.toString()));
 				} else {
-					result.add(makeTsvList(EMPTY,EMPTY,TypeBody,key.toString(),decode(entry.getValue().getAsString())));
+					result.add(makeTsvList(EMPTY,EMPTY,EMPTY,TypeBody,key.toString(),decode(entry.getValue().getAsString())));
 				}
 			}
 		} else if(je.isJsonArray()) {
@@ -406,17 +413,16 @@ public class BurpExtender implements IBurpExtender, IContextMenuFactory {
 				StringBuilder key = new StringBuilder();
 				key.append(parentKey).append(ArrayIndexStart).append(String.valueOf(i++)).append(ArrayIndexEnd);
 				if(jea.isJsonNull()) {
-					result.add(makeTsvList(EMPTY,EMPTY,TypeBody,key.toString(),decode(null)));
+					result.add(makeTsvList(EMPTY,EMPTY,EMPTY,TypeBody,key.toString(),decode(null)));
 				} else if(jea.isJsonObject()) {
 					result = addTsvList(result,parseJson(jea.getAsJsonObject().toString(), key.toString()));
 				} else if(jea.isJsonArray()) {
 					result = addTsvList(result,parseJson(jea.getAsJsonArray().toString(), key.toString()));
 				} else {
-					result.add(makeTsvList(EMPTY,EMPTY,TypeBody,key.toString(),decode(jea.getAsString())));
+					result.add(makeTsvList(EMPTY,EMPTY,EMPTY,TypeBody,key.toString(),decode(jea.getAsString())));
 				}
 			}
 		}
 		return result;
 	}
-	
 }
