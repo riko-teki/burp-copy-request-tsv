@@ -293,6 +293,7 @@ public class BurpExtender implements IBurpExtender, IContextMenuFactory {
 		
 		// Comment + Method + URL
 		String Comment = message.getComment();
+		if (Comment == null) { Comment = ""; }
 		URL url = requestInfo.getUrl();
 		StringBuilder sbUrl = new StringBuilder();
 		sbUrl.append(url.getProtocol()).append(Scheme).append(url.getHost()).append(url.getPath());
